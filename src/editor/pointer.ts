@@ -35,6 +35,7 @@ export class EditorPointer {
   }
 
   onDown(this: Editor, e: PointerEvent) {
+    if(this.drag?.type==='lasso')return;
     const { sx, sy } = this.evPt(e);
     const wp = this.toWorld(sx, sy);
     this.canvas.setPointerCapture(e.pointerId);
@@ -71,6 +72,7 @@ export class EditorPointer {
       return;
     }
     switch (this.tool) {
+      case 'lasso':this.beginLasso(wp,e,false);return;
       case 'select': {
         if (this.hitPivot(sx, sy)) {
           this.drag = { type: 'pivot' };
@@ -199,6 +201,7 @@ export class EditorPointer {
         return;
       }
       case 'node': {
+        if(this.nodeLasso && e.altKey){this.beginLasso(wp,e,true);return;}
         this.updateNodeHover(sx, sy);
         const target = this.nodeTarget();
         const add = e.shiftKey || e.ctrlKey || e.metaKey;
@@ -221,6 +224,12 @@ export class EditorPointer {
             }
             this.emit('sel');
           }
+          if(h.which!=='p') {
+            const key=`${h.sub}:${h.idx}:${h.which}`,picked=this.handleSelection(target);
+            if(add){if(picked.has(key))picked.delete(key);else picked.add(key);this.emit('sel');return;}
+            if(!picked.has(key)){this.clearNodeSel();this.handleSelection(target).add(key);}
+            this.emit('sel');
+          }
           this.startComponentDrag(target, h.sub, h.idx, h.which, wp);
           return;
         }
@@ -237,6 +246,7 @@ export class EditorPointer {
           return;
         }
         const hit = this.hitTest(wp);
+        if(this.nodeLasso && target && (!hit||this.nodeTargets().includes(hit))){this.beginLasso(wp,e,true);return;}
         if (target && (!hit || this.nodeTargets().includes(hit))) {
           // Rahmen zum Auswählen von Knoten
           this.drag = {
@@ -265,6 +275,7 @@ export class EditorPointer {
   }
 
   onMove(this: Editor, e: PointerEvent) {
+    if(this.drag?.type==='lasso'&&this.drag.pointerId!==e.pointerId)return;
     const { sx, sy } = this.evPt(e);
     const wp = this.toWorld(sx, sy);
     this.cursor = wp;
@@ -320,6 +331,9 @@ export class EditorPointer {
       return;
     }
     switch (d.type) {
+      case 'lasso':
+        if(Math.hypot(wp.x-d.points.at(-1)!.x,wp.y-d.points.at(-1)!.y)*this.view.zoom>=2){if(d.points.length<4096)d.points.push(wp);else d.overflow=true;}
+        this.redraw();return;
       case 'pan':
         this.view.ox = d.ox + sx - d.sx;
         this.view.oy = d.oy + sy - d.sy;
@@ -513,6 +527,15 @@ export class EditorPointer {
           n.cout = sh(d.orig.cout);
           if (!n.cin) delete n.cin;
           if (!n.cout) delete n.cout;
+        } else if(d.handles.length) {
+          const delta={x:tgt.x-d.origWorld.x,y:tgt.y-d.origWorld.y};
+          for(const h of d.handles) {
+            const matrix=inv(h.obj.m),zero=apply(matrix,0,0),move=apply(matrix,delta.x,delta.y);
+            const node=(h.obj.shape as {subs:SubPath[]}).subs[h.sub].nodes[h.idx],p=h.orig[h.which]!;
+            node[h.which]={x:p.x+move.x-zero.x,y:p.y+move.y-zero.y};
+            // Multi-handle movement is explicit independent movement, like Alt-drag.
+            node.smooth=false;this.touch(h.obj.shape);
+          }
         } else {
           const h = sh(d.orig[d.which])!;
           n[d.which] = h;
@@ -533,6 +556,7 @@ export class EditorPointer {
   }
 
   onUp(this: Editor, e: PointerEvent) {
+    if(this.drag?.type==='lasso'&&this.drag.pointerId!==e.pointerId)return;
     if (this.tool === 'sketch') this.sketchUp();
     const d = this.drag;
     this.drag = null;
@@ -541,6 +565,7 @@ export class EditorPointer {
     this.alignGuides = [];
     this.redraw();
     switch (d.type) {
+      case 'lasso': {const {sx,sy}=this.evPt(e);if(d.points.length<4096)d.points.push(this.toWorld(sx,sy));this.finishLasso(d);return;}
       case 'guide': {
         if (d.idx === null || !d.moved) return;
         const { sx, sy } = this.evPt(e);
@@ -745,7 +770,8 @@ export class EditorPointer {
   }
 
   startComponentDrag(this: Editor, target: Obj, sub: number, idx: number, which: 'p' | 'cin' | 'cout', start: Pt) {
-    const targets = which === 'p' ? this.nodeTargets().filter((o) => this.movingNodes(o).length) : [target];
+    const handles=which==='p'?[]:this.selectedHandles().map(h=>({...h,orig:clone(shapeSubs(h.obj.shape)[h.sub].nodes[h.idx])}));
+    const targets = which === 'p' ? this.nodeTargets().filter((o) => this.movingNodes(o).length) : handles.length?[...new Set(handles.map(h=>h.obj))]:[target];
     const shapes = targets.map((obj) => ({ obj, shape: clone(obj.shape) }));
     const subs = shapeSubs(target.shape), orig = clone(subs[sub].nodes[idx]);
     const group = which === 'p' ? targets.flatMap((obj) => this.movingNodes(obj).map((n) => ({ ...n, orig: clone(shapeSubs(obj.shape)[n.sub].nodes[n.idx]) }))) : [];
@@ -758,7 +784,7 @@ export class EditorPointer {
         const p = apply(obj.m, n.x, n.y); snapSet.addPoint(p.x, p.y, 'node');
       }));
     }
-    this.drag = { type: 'node', obj: target, sub, idx, which, start, orig, group, shapes,
+    this.drag = { type: 'node', obj: target, sub, idx, which, start, orig, group, shapes, handles:handles.length>1?handles:[],
       origWorld: apply(target.m, op.x, op.y), snapSet, moved: false, redo: this.history.saveRedo() };
   }
 }
