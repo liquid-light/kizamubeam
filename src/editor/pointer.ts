@@ -35,6 +35,7 @@ export class EditorPointer {
   }
 
   onDown(this: Editor, e: PointerEvent) {
+    if(this.drag?.type==='freehand-edit')return;
     const { sx, sy } = this.evPt(e);
     const wp = this.toWorld(sx, sy);
     this.canvas.setPointerCapture(e.pointerId);
@@ -71,6 +72,7 @@ export class EditorPointer {
       return;
     }
     switch (this.tool) {
+      case 'freehand-edit':this.beginFreehandEdit(wp,e.pointerId);return;
       case 'select': {
         if (this.hitPivot(sx, sy)) {
           this.drag = { type: 'pivot' };
@@ -265,6 +267,7 @@ export class EditorPointer {
   }
 
   onMove(this: Editor, e: PointerEvent) {
+    if(this.drag?.type==='freehand-edit' && this.drag.pointerId!==e.pointerId)return;
     const { sx, sy } = this.evPt(e);
     const wp = this.toWorld(sx, sy);
     this.cursor = wp;
@@ -320,6 +323,7 @@ export class EditorPointer {
       return;
     }
     switch (d.type) {
+      case 'freehand-edit':this.sampleFreehandEdit(wp,e.pointerId);return;
       case 'pan':
         this.view.ox = d.ox + sx - d.sx;
         this.view.oy = d.oy + sy - d.sy;
@@ -533,6 +537,7 @@ export class EditorPointer {
   }
 
   onUp(this: Editor, e: PointerEvent) {
+    if(this.drag?.type==='freehand-edit' && this.drag.pointerId!==e.pointerId)return;
     if (this.tool === 'sketch') this.sketchUp();
     const d = this.drag;
     this.drag = null;
@@ -541,6 +546,7 @@ export class EditorPointer {
     this.alignGuides = [];
     this.redraw();
     switch (d.type) {
+      case 'freehand-edit': { const {sx,sy}=this.evPt(e);this.finishFreehandEdit(d,this.toWorld(sx,sy));return; }
       case 'guide': {
         if (d.idx === null || !d.moved) return;
         const { sx, sy } = this.evPt(e);

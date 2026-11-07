@@ -41,6 +41,8 @@ import { EditorRelations, RelPick } from './editor/relations';
 import { EditorSketch, SketchSession } from './editor/sketch';
 import type { RelMode } from './relations';
 import { t } from './i18n';
+import { EditorFreehand } from './editor/freehand';
+import type { FreehandMode } from './freehandEdit';
 import { DEFAULT_GRID, GridSettings } from './grid';
 import { EditorIsolation, IsolationState } from './editor/isolation';
 import { EditorVector, VectorPlan } from './editor/vector';
@@ -49,6 +51,8 @@ export type { Tool } from './editor/shared';
 export { RULER, TOOL_HINTS } from './editor/shared';
 
 export class Editor {
+  freehandMode:FreehandMode='continue';
+  freehandTolerance=0.2;
   doc: Doc = newDoc();
   sel: Obj[] = [];
   tool: Tool = 'select';
@@ -261,7 +265,7 @@ export class Editor {
     canvas.addEventListener('pointerdown', (e) => this.onDown(e));
     canvas.addEventListener('pointermove', (e) => this.onMove(e));
     canvas.addEventListener('pointerup', (e) => this.onUp(e));
-    canvas.addEventListener('pointercancel', () => this.cancelDrag());
+    canvas.addEventListener('pointercancel', (e) => { if(this.drag?.type!=='freehand-edit'||this.drag.pointerId===e.pointerId)this.cancelDrag(); });
     canvas.addEventListener('lostpointercapture', () => { if (this.drag) this.cancelDrag(); });
     canvas.addEventListener('pointerleave', () => {
       if (this.drag || (!this.nodeHover && !this.segHover && !this.snapHit && !this.alignGuides.length)) return;
@@ -519,7 +523,7 @@ export class Editor {
 // Die Teile in src/editor/ sind Klassen ohne eigene Felder; ihre Methoden haben `this: Editor` und werden hier
 // in Editor.prototype kopiert. Neue Methoden kommen in den passenden Teil, neue Felder in die Klasse Editor oben.
 export interface Editor
-  extends EditorDocument,
+  extends EditorFreehand, EditorDocument,
     EditorPointer,
     EditorKeyboard,
     EditorSnapping,
@@ -549,6 +553,7 @@ export interface Editor
     EditorRender {}
 
 const PARTS = [
+  EditorFreehand,
   EditorDocument,
   EditorPointer,
   EditorKeyboard,
