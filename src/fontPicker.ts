@@ -3,6 +3,14 @@
 // Hover oder Pfeiltasten zeigen die Schrift transient auf den gewählten Texten, erst Klick/Enter übernimmt
 // permanent (mit Undo-Snapshot). Die Vorschau erzeugt keinen Verlaufseintrag und kein Autosave — sie schreibt
 // direkt auf Formen/textDefaults und löst nur emit('sel') aus (reicht für Neuzeichnen, siehe onFontLoaded).
+//
+// BEKANNTE EINSCHRÄNKUNG (Stand 2026-11-13, Entscheidung: Prototyp behalten):
+// Im Browser funktioniert die Vorschau von Systemschriften NICHT sauber. Der Canvas zeichnet Glyphen-Outlines
+// aus Opentype-Binaries; loadFont löst Systemschriften mangels Local-Fonts-Permission immer auf den
+// Roboto-Fallback auf. Beim Erst-Hover sieht man daher kurz die echte Systemschrift (Interim-fillText),
+// danach den Roboto-Redraw — wirkt wie „Zucken und Zurückkehren". Das ist eine vorbestehende
+// Plattform-Limitation (keine Prototyp-Regression: das alte Dropdown nutzt denselben Render-Pfad);
+// in der Desktop-App (echte Font-Binaries via Tauri) arbeitet die Vorschau korrekt.
 import { h } from './dom';
 import type { Editor } from './editor';
 import { t } from './i18n';
