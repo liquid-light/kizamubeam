@@ -12,7 +12,7 @@ import { openFillDialog, openSaveTemplateDialog, openSeriesDialog, openTemplateL
 import { exportDxf, exportPdf, exportSvg, importFile, importModel, installDropAndPaste, openProject, saveProcessedBitmap, saveProject } from './files';
 import { onMeshReady } from './model3d/store';
 import { assetImage, displayCanvas, onImageReady, outputGrid } from './images';
-import { onFontListChanged, systemFonts } from './fonts';
+import { onFontListChanged, refreshFonts, requestLocalFonts, systemFonts } from './fonts';
 import { fontFavorites } from './fontCatalog';
 import { openFontManager } from './fontManager';
 import { $, evalExpr, f2, h, iconBtn, numInput, sep, setVal } from './dom';
@@ -773,6 +773,11 @@ function buildNumbar(ed: Editor) {
     }
     lastFont = fontSel.value;
     ed.updateTexts({ font: fontSel.value });
+    // Browser: beim Schriftwechsel einmalig den Zugriff auf lokale Schriften anfordern (Nutzer-Geste).
+    // Wird er erteilt, lädt refreshFonts() alles, wofür bisher Roboto eingesprungen ist, mit echten Binaries neu.
+    void requestLocalFonts().then((ok) => {
+      if (ok) refreshFonts();
+    });
   });
   const loadFontList = () =>
     systemFonts().then((list) => {
