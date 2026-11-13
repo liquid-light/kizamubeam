@@ -189,6 +189,8 @@ const REMOTE_METHOD: Record<string, string> = {
 class Machine {
   connected = false;
   connecting = false;
+  /** Referenzfahrt mit Z-Abdeckung in dieser Verbindung ausgeführt (für strengen Z-Jog) */
+  homed = false;
   /** Beschreibung der Verbindung, z. B. „COM3“ oder „fluidnc.local:23“ */
   where = '';
   status: MachineStatus = emptyStatus();
@@ -359,6 +361,7 @@ class Machine {
     if (this.connected || this.connecting) return;
     this.connecting = true;
     this.wco = { v: [0, 0, 0], known: false };
+    this.homed = false;
     this.emit({ type: 'connection' });
     try {
       await this.listen();
@@ -430,6 +433,8 @@ class Machine {
     if (/G\s*(10|92|5[4-9])\b/i.test(line)) this.wco.known = false;
     try {
       await this.call('machine_send', { line });
+      // Referenzfahrt mit Z-Abdeckung ($H = alle Achsen; G28 nur bei genanntem Z) merken
+      if (line.trim() === this.fw.home && (this.fw.home === '$H' || /\bZ\b/i.test(line))) this.homed = true;
     } catch (e) {
       this.log(tBackend(String(e)), 'error');
     }
