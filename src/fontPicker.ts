@@ -16,7 +16,16 @@ const MANAGE = '\u0000manage';
 /** Zeilen, die diese Familie im eigenen Schnitt zeigen, sobald sie im Dokument verfügbar ist */
 function previewFace(row: HTMLElement, family: string) {
   const apply = (fam: string) => (row.style.fontFamily = `"${fam}", sans-serif`);
-  // System-/installierte Schrift: sofort da; sonst Google-Fonts-CSS verlinken (kommt async nach).
+  // Lokal installierte Schrift (Systemschrift): ohne Netz-Request direkt nutzbar.
+  try {
+    if (document.fonts.check(`16px "${family}"`)) {
+      apply(family);
+      return;
+    }
+  } catch {
+    /* weiter mit Lazy-Loading */
+  }
+  // Google-Font: CSS verlinken (kommt async nach); Systemschriften fallen oben raus und erzeugen keinen Request.
   void Promise.race([
     document.fonts.load(`16px "${family}"`),
     new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 1500)),
