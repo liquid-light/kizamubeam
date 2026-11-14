@@ -12,9 +12,9 @@ import { openFillDialog, openSaveTemplateDialog, openSeriesDialog, openTemplateL
 import { exportDxf, exportPdf, exportSvg, importFile, importModel, installDropAndPaste, openProject, saveProcessedBitmap, saveProject } from './files';
 import { onMeshReady } from './model3d/store';
 import { assetImage, displayCanvas, onImageReady, outputGrid } from './images';
-import { onFontListChanged, systemFonts } from './fonts';
-import { fontFavorites } from './fontCatalog';
+import { onFontListChanged, refreshFonts, requestLocalFonts, systemFonts } from './fonts';
 import { openFontManager } from './fontManager';
+import { createFontPicker } from './fontPicker';
 import { $, evalExpr, f2, h, iconBtn, numInput, sep, setVal } from './dom';
 import { openCircularArrayDialog, openGridArrayDialog } from './arrayDialogs';
 import { openNestDialog } from './nestDialog';
@@ -41,7 +41,7 @@ import { askGenConvert, openGenDialog } from './generators/dialog';
 import { assignLayerAsk, needsChildLayersQuestion } from './layerAssign';
 import { genLabel, getGenerator } from './generators';
 import { maybeOfferSetup, openSetupWizard } from './setupWizard';
-import { maybeCheckForUpdates, openUpdateDialog } from './updateDialog';
+import { maybeCheckForUpdates, nightlyBuild, nightlyWarning, openUpdateDialog } from './updateDialog';
 import { openPacksDialog } from './packsDialog';
 import { openGridDialog } from './gridDialog';
 import { buildLaser, frameJob, isPositionPick, openDeviceDialog, openDevicesDialog, openPreview, openRotaryDialog, saveGCode, startJob, togglePositionPick } from './laser';
@@ -241,7 +241,7 @@ function changeLanguage(ed: Editor, p: LangPref) {
 
 /** Feste Texte aus index.html */
 function translateStatic() {
-  document.title = 'KizamuBeam';
+  document.title = nightlyBuild ? `KizamuBeam ${APP_VERSION}` : 'KizamuBeam';
   ($('#texteditor textarea') as HTMLTextAreaElement).placeholder = t('Text eingeben …');
   $('#texteditor .hint').textContent = t('Enter: neue Zeile · Ctrl+Enter oder Esc: fertig');
 }
@@ -580,6 +580,7 @@ function showAbout() {
     { class: 'about' },
     h('img', { src: isDark() ? logoDark : logoLight, alt: 'KizamuBeam' }),
     h('p', {}, t('Version {version}', { version: APP_VERSION })),
+    nightlyBuild ? h('p', { class: 'note' }, nightlyWarning()) : null,
     h('p', {}, t('„Kizamu“ (刻む) ist japanisch und heißt einritzen, gravieren, fein schneiden.')),
     h('p', {}, t('© 2026 Hanjo Winter · github.com/negurvulkan')),
     h('p', { class: 'note' }, t('Entwickelt mit Unterstützung von Claude Code.')),
@@ -745,39 +746,29 @@ function buildNumbar(ed: Editor) {
   const rectProps = h('label', {}, t('Radius'), fRad);
   const polyProps = h('span', { class: 'field' }, h('label', {}, t('Ecken'), fSides), starBtn);
 
-  // Text
-  const fontSel = h('select', { title: t('Schriftart') }) as HTMLSelectElement;
-  // Favoriten (Font-Manager) oben, darunter alle; ganz unten öffnet „Weitere Schriften …“ den Font-Manager
-  const MANAGE = '\u0000manage';
+  // Text — Schriften-Dropdown mit Hover-Vorschau (Prototyp, siehe fontPicker.ts)
   let fontNames = availableFonts();
-  let lastFont = fontNames[0] ?? '';
-  const fillFonts = () => {
-    const cur = fontSel.value || lastFont;
-    const lower = new Set(fontNames.map((f) => f.toLowerCase()));
-    const favs = fontFavorites().filter((f) => lower.has(f.toLowerCase()));
-    const opts = (l: string[]) => l.map((f) => h('option', { value: f }, f));
-    fontSel.replaceChildren(
-      ...(favs.length ? [h('optgroup', { label: t('Favoriten') }, ...opts(favs)), h('optgroup', { label: t('Alle Schriften') }, ...opts(fontNames))] : opts(fontNames)),
-      h('option', { value: MANAGE }, t('Weitere Schriften …')),
-    );
-    // Schrift eines Texts, die (noch) fehlt, bleibt sichtbar
-    if (cur && !lower.has(cur.toLowerCase())) fontSel.prepend(h('option', { value: cur }, cur));
-    fontSel.value = cur;
-  };
-  fillFonts();
-  fontSel.addEventListener('change', () => {
-    if (fontSel.value === MANAGE) {
-      fontSel.value = lastFont;
-      void openFontManager(ed);
-      return;
-    }
-    lastFont = fontSel.value;
-    ed.updateTexts({ font: fontSel.value });
+  const fontPicker = createFontPicker(ed, {
+    initial: fontNames,
+    current: () => {
+      const ts = ed.selTexts();
+      return ts.length ? (ts[0].shape as TextShape).font : ed.textDefaults.font;
+    },
+    commit: (family) => {
+      ed.updateTexts({ font: family });
+      // Browser: beim Schriftwechsel einmalig den Zugriff auf lokale Schriften anfordern (Nutzer-Geste).
+      // Wird er erteilt, lädt refreshFonts() alles, wofür bisher Roboto eingesprungen ist, mit echten Binaries neu.
+      void requestLocalFonts().then((ok) => {
+        if (ok) refreshFonts();
+      });
+    },
+    openManager: () => void openFontManager(ed),
   });
+  const fontSel = fontPicker.el;
   const loadFontList = () =>
     systemFonts().then((list) => {
       if (list?.length) fontNames = list;
-      fillFonts();
+      fontPicker.rebuild(fontNames);
     });
   void loadFontList();
   onFontListChanged(() => void loadFontList());
@@ -967,9 +958,7 @@ function buildNumbar(ed: Editor) {
     const ts = ed.selTexts();
     const tx = ts.length ? (ts[0].shape as TextShape) : ed.textDefaults;
     textProps.classList.toggle('group-disabled', !ts.length && ed.tool !== 'text');
-    if (![...fontSel.options].some((o) => o.value === tx.font)) fontSel.append(h('option', { value: tx.font }, tx.font));
-    if (document.activeElement !== fontSel) fontSel.value = tx.font;
-    lastFont = tx.font;
+    fontPicker.sync(tx.font);
     bindField(fSize, 'size', f2(tx.size), (o) => o.shape.kind === 'text');
     setVal(fHs, f2(tx.hSpace));
     setVal(fVs, f2(tx.vSpace));
