@@ -1,0 +1,444 @@
+{
+ "format": "kizamubeam-pack",
+ "formatVersion": 2,
+ "id": "org.kizamubeam.street-map",
+ "version": "1.0.1",
+ "name": {
+  "en": "Street map",
+  "de": "Stadtplan",
+  "it": "Mappa stradale"
+ },
+ "description": {
+  "en": "Engravable map of a place from OpenStreetMap: roads, water, railways, parks and buildings on a cut plate.",
+  "de": "Gravierbarer Plan eines Ortes aus OpenStreetMap: Straßen, Wasser, Bahnen, Parks und Gebäude auf einer geschnittenen Platte.",
+  "it": "Mappa incidibile di un luogo da OpenStreetMap: strade, acqua, ferrovie, parchi ed edifici su una lastra tagliata."
+ },
+ "author": "KizamuBeam",
+ "homepage": "https://github.com/KizamuBeam/kizamubeam/tree/main/plugins/street-map",
+ "plugins": [
+  {
+   "id": "org.kizamubeam.street-map",
+   "type": "generator",
+   "api": 1,
+   "version": 1,
+   "kind": "part",
+   "runtime": "js",
+   "code": "\"use strict\";(()=>{var k=globalThis.host;function q(e){globalThis.plugin=e}var ne=.5522847498307935,te=e=>({closed:!0,nodes:e.map(([n,t])=>({x:n,y:t}))});function $(e,n){let t=e/2,o=n/2;return te([[-t,-o],[t,-o],[t,o],[-t,o]])}function B(e,n,t){let o=t*ne,r=(l,a,s,m,b,P)=>({x:l,y:a,cin:{x:s,y:m},cout:{x:b,y:P}});return{closed:!0,nodes:[r(e+t,n,e+t,n-o,e+t,n+o),r(e,n+t,e+o,n+t,e-o,n+t),r(e-t,n,e-t,n+o,e-t,n-o),r(e,n-t,e-o,n-t,e+o,n-t)]}}var F=1500,J=[300,600,1e3,1500,2e3,3e3,4e3];function X(e){let n=/^\\s*(-?[0-9]+(?:\\.[0-9]+)?)\\s*,\\s*(-?[0-9]+(?:\\.[0-9]+)?)\\s*$/.exec(e.center);if(!n)return null;let t=Number(n[1]),o=Number(n[2]);return Math.abs(t)<=85&&Math.abs(o)<=180?[t,o]:null}var L=e=>e.shape===\"circle\"?[e.width,e.width]:[e.width,e.height];function re(e,n){let[t,o]=L(e),r=e.span*Math.max(1,o/t)*1.05,l=J.find(b=>b>=r)??J[J.length-1],a=l/2/110574,s=l/2/(111320*Math.cos(n[0]*Math.PI/180)),m=b=>Math.round(b*1e6)/1e6;return[m(n[0]-a),m(n[1]-s),m(n[0]+a),m(n[1]+s)]}var oe=(e,n)=>`[out:json][timeout:25][bbox:${e.join(\",\")}];(${n});out geom qt;`,se='way[\"highway\"];way[\"railway\"~\"^(rail|light_rail|tram|narrow_gauge)$\"];way[\"natural\"=\"water\"];relation[\"natural\"=\"water\"];way[\"waterway\"~\"^(river|canal|stream|riverbank)$\"];way[\"landuse\"~\"^(reservoir|basin|forest|grass|meadow)$\"];way[\"leisure\"~\"^(park|garden)$\"];',ae='way[\"building\"];',U=[\"overpass\",\"overpassCoffee\",\"overpassDresel\"],_=0,ie=e=>e.status===429||e.status!==void 0&&e.status>=500;function H(e,n){let t={path:\"/interpreter\",method:\"POST\",body:`data=${encodeURIComponent(oe(e,n))}`},o=null;for(let r=0;r<U.length;r++){let l=(_+r)%U.length,a=k.fetch({host:U[l],...t});if(a.error===\"net-failed\"||a.error===\"net-status\"&&ie(a)){o=a;continue}if(a.error)throw new Error(a.error);return _=l,JSON.parse(a.text??\"{}\").elements??[]}throw new Error(o&&o.error===\"net-status\"?\"serverBusy\":\"serverDown\")}function N(e,n){let t=e.length/2;if(t<3)return e;let o=new Uint8Array(t);o[0]=o[t-1]=1;let r=[[0,t-1]];for(;r.length;){let[a,s]=r.pop(),m=e[a*2],b=e[a*2+1],P=e[s*2],w=e[s*2+1],p=P-m,h=w-b,I=Math.hypot(p,h)||1e-12,v=-1,d=-1;for(let y=a+1;y<s;y++){let f=Math.abs((e[y*2]-m)*h-(e[y*2+1]-b)*p)/I;f>v&&(v=f,d=y)}v>n&&(o[d]=1,r.push([a,d],[d,s]))}let l=[];for(let a=0;a<t;a++)o[a]&&l.push(e[a*2],e[a*2+1]);return l}function ue(e){let n=0;for(let t=0,o=e.length;t<o;t+=2){let r=(t+2)%o;n+=e[t]*e[r+1]-e[r]*e[t+1]}return n/2}var z=e=>ue(e)<0?Z(e):e;function Z(e){let n=[];for(let t=e.length-2;t>=0;t-=2)n.push(e[t],e[t+1]);return n}function K(e){let n=[],t=e.filter(r=>r.length>=4).map(r=>r.slice()),o=(r,l,a,s)=>Math.abs(r[l]-a[s])<1e-6&&Math.abs(r[l+1]-a[s+1])<1e-6;for(;t.length;){let r=t.shift();for(let l=!0;l&&!o(r,0,r,r.length-2);){l=!1;for(let a=0;a<t.length;a++){let s=t[a],m=r.length-2;if(o(r,m,s,0))r=r.concat(s.slice(2));else if(o(r,m,s,s.length-2))r=r.concat(Z(s).slice(2));else continue;t.splice(a,1),l=!0;break}}r.length>=8&&o(r,0,r,r.length-2)&&n.push(r.slice(0,-2))}return n}function Q(e,n){let t=[],o=null,r=n.length/2,l=n.reduce((s,m,b)=>b%2?s:s+m,0)/r,a=n.reduce((s,m,b)=>b%2?s+m:s,0)/r;for(let s=0;s+3<e.length;s+=2){let m=e[s],b=e[s+1],P=e[s+2],w=e[s+3],p=0,h=1;for(let f=0;f<r&&p<=h;f++){let S=n[f*2],x=n[f*2+1],E=n[(f+1)%r*2],R=-(n[(f+1)%r*2+1]-x),A=E-S;R*(l-S)+A*(a-x)<0&&(R=-R,A=-A);let O=R*(P-m)+A*(w-b),C=R*(m-S)+A*(b-x);if(Math.abs(O)<1e-15){C<0&&(p=2);continue}let V=-C/O;O>0?p=Math.max(p,V):h=Math.min(h,V)}if(p>h){o=null;continue}let I=m+(P-m)*p,v=b+(w-b)*p,d=m+(P-m)*h,y=b+(w-b)*h;o&&p===0?o.push(d,y):(o=[I,v,d,y],t.push(o)),h<1&&(o=null)}return t.filter(s=>s.length>=4&&Math.hypot(s[s.length-2]-s[0],s[s.length-1]-s[1])>1e-6)}function le(e,n){let t=(e.highway??\"\").replace(/_link$/,\"\");if(e.tunnel&&e.tunnel!==\"no\"||e.area===\"yes\")return 0;let o=[\"motorway\",\"trunk\",\"primary\",\"secondary\"].includes(t),r=[\"tertiary\",\"residential\",\"unclassified\",\"living_street\",\"pedestrian\",\"road\"].includes(t),l=t===\"service\",a=[\"footway\",\"path\",\"cycleway\",\"track\",\"steps\",\"bridleway\"].includes(t);return o?n===\"none\"?0:1:r?n===\"streets\"||n===\"all\"?.65:0:l?n===\"all\"?.45:0:a&&n===\"all\"?.3:0}var j=(e,n)=>n.water&&(e.natural===\"water\"||e.waterway===\"riverbank\"||e.landuse===\"reservoir\"||e.landuse===\"basin\")?\"water\":n.parks&&(e.leisure===\"park\"||e.leisure===\"garden\"||e.landuse===\"forest\"||e.landuse===\"grass\"||e.landuse===\"meadow\")?\"parks\":null;function me(e){let[n,t]=L(e);if(e.shape===\"circle\"){let o=[];for(let r=0;r<180;r++)o.push(Math.cos(r/180*2*Math.PI)*n/2,Math.sin(r/180*2*Math.PI)*n/2);return o}return[-n/2,-t/2,n/2,-t/2,n/2,t/2,-n/2,t/2]}var Y=(e,n)=>{let t=[];for(let o=0;o<e.length;o+=2)t.push({x:Math.round(e[o]*1e3)/1e3,y:Math.round(e[o+1]*1e3)/1e3});return{nodes:t,closed:n}};function ce(e){let n=[];return X(e)||n.push({key:\"query\",level:\"error\",code:\"noPlace\"}),e.buildings&&e.span>F&&n.push({key:\"buildings\",level:\"warn\",code:\"buildingsLarge\",values:{max:F}}),e.roadStyle===\"lines\"&&e.invert&&n.push({key:\"invert\",level:\"warn\",code:\"invertLines\"}),n}q({validate:ce,onEvent:({action:e,params:n})=>{if(e!==\"find\")return null;let t=n.query.trim();if(!t)return{message:{code:\"enterPlace\"}};if(/^-?[0-9.]+\\s*,\\s*-?[0-9.]+$/.test(t))return{patch:{center:t.replace(/\\s+/g,\"\"),placeName:t},message:{code:\"found\",values:{name:t}}};let o=k.fetch({host:\"nominatim\",path:\"/search\",query:{q:t,format:\"jsonv2\",limit:1}});if(o.error)throw new Error(o.error);let r=JSON.parse(o.text??\"[]\")[0];if(!r)return{message:{code:\"notFound\",values:{q:t}}};let l=r.display_name.split(\",\").slice(0,3).join(\",\").trim();return{patch:{center:`${Number(r.lat).toFixed(6)},${Number(r.lon).toFixed(6)}`,placeName:l},message:{code:\"found\",values:{name:l}}}},generate:e=>{let n=X(e);if(!n)throw new Error(\"noPlace\");let t=re(e,n),o=[],r=null;try{o=H(t,se)}catch(i){if(i.message!==\"net-pending\")throw i;r=i}let l=e.buildings&&e.span<=F;if(l)try{o=o.concat(H(t,ae))}catch(i){if(i.message!==\"net-pending\")throw i;r=i}if(r)throw r;let[a,s]=L(e),m=a/e.span,b=111320*Math.cos(n[0]*Math.PI/180)*m,P=110574*m,w=i=>{let c=[];for(let u of i)c.push((u.lon-n[1])*b,-(u.lat-n[0])*P);return c},p=me(e),h=.03,I=e.roadWidth/2,v=[],d=[],y=[],f={roads:0,buildings:0,water:0},S=Math.max(a,s)*.75,x=i=>{let c=1/0,u=1/0,M=-1/0,g=-1/0;for(let T=0;T<i.length;T+=2)c=Math.min(c,i[T]),M=Math.max(M,i[T]),u=Math.min(u,i[T+1]),g=Math.max(g,i[T+1]);return c<S&&M>-S&&u<S&&g>-S},E=(i,c)=>{if(!(c<=0||i.length<4||!x(i)))for(let u of k.region({op:\"band\",line:N(i,h),radius:c}))v.push(u)};for(let i of o){let c=i.tags??{};if(i.type===\"way\"&&i.geometry&&i.geometry.length>=2){let u=w(i.geometry),M=u.length>=8&&Math.abs(u[0]-u[u.length-2])<1e-9&&Math.abs(u[1]-u[u.length-1])<1e-9;if(c.highway){let g=le(c,e.roads);if(!g)continue;f.roads++,e.roadStyle===\"lines\"?x(u)&&y.push(...Q(N(u,h),p)):E(u,I*g)}else c.railway?e.rail&&!(c.tunnel&&c.tunnel!==\"no\")&&(e.roadStyle===\"lines\"?x(u)&&y.push(...Q(N(u,h),p)):E(u,I*.35)):c.building?l&&M&&x(u)&&(d.push(z(N(u.slice(0,-2),h))),f.buildings++):c.waterway&&c.waterway!==\"riverbank\"?e.water&&E(u,I*(c.waterway===\"river\"?.9:c.waterway===\"canal\"?.7:.3)):M&&j(c,e)&&x(u)&&(d.push(z(N(u.slice(0,-2),h))),j(c,e)===\"water\"&&f.water++)}else if(i.type===\"relation\"&&i.members&&j(c,e)){let u=K(i.members.filter(g=>g.role!==\"inner\"&&g.geometry).map(g=>w(g.geometry))),M=K(i.members.filter(g=>g.role===\"inner\"&&g.geometry).map(g=>w(g.geometry)));if(!u.some(x))continue;for(let g of k.region({op:\"loops\",loops:[...u,...M].map(T=>N(T,h))}))d.push(g);f.water++}}let W=k.region({op:\"union\",a:[...d,...v]}),R=k.region({op:\"intersection\",a:W,b:[p]}),A=e.invert&&e.roadStyle!==\"lines\"?k.region({op:\"difference\",a:[p],b:R}):R,C=[...k.region({op:\"clean\",a:A,minArea:e.minArea}).polys.map(i=>Y(i,!0)),...y.map(i=>Y(i,!1))],V=e.shape===\"circle\"?B(0,0,a/2):$(a,s),G=e.span*1e3/a,D=G>=1e3?100:10,ee=Math.round(G/D)*D;return{parts:[{key:\"map\",subs:[V],at:{x:0,y:0},...C.length?{marks:C}:{}}],info:[[\"info.place\",e.placeName||e.center],[\"info.scale\",{code:\"scale\",values:{n:ee}}],[\"info.roads\",String(f.roads)],...l?[[\"info.buildings\",String(f.buildings)]]:[]],label:{code:\"label\",values:{name:e.placeName.split(\",\")[0]||e.center}}}}});})();\n",
+   "icon": "target",
+   "host": [
+    "fetch",
+    "region"
+   ],
+   "preview": {
+    "center": true
+   },
+   "network": [
+    {
+     "id": "nominatim",
+     "base": "https://nominatim.openstreetmap.org",
+     "methods": [
+      "GET"
+     ],
+     "types": [
+      "json"
+     ],
+     "rate": 1,
+     "purpose": "net.nominatim",
+     "attribution": "© OpenStreetMap contributors"
+    },
+    {
+     "id": "overpass",
+     "base": "https://overpass-api.de/api",
+     "methods": [
+      "POST"
+     ],
+     "types": [
+      "json"
+     ],
+     "rate": 1,
+     "purpose": "net.overpass",
+     "attribution": "© OpenStreetMap contributors"
+    },
+    {
+     "id": "overpassCoffee",
+     "base": "https://overpass.private.coffee/api",
+     "methods": [
+      "POST"
+     ],
+     "types": [
+      "json"
+     ],
+     "rate": 1,
+     "purpose": "net.overpassCoffee",
+     "attribution": "© OpenStreetMap contributors"
+    },
+    {
+     "id": "overpassDresel",
+     "base": "https://ovp.dresel.systems/api",
+     "methods": [
+      "POST"
+     ],
+     "types": [
+      "json"
+     ],
+     "rate": 1,
+     "purpose": "net.overpassDresel",
+     "attribution": "© OpenStreetMap contributors"
+    }
+   ],
+   "params": [
+    {
+     "key": "query",
+     "type": "text",
+     "def": ""
+    },
+    {
+     "key": "center",
+     "type": "data",
+     "def": "52.516275,13.377704"
+    },
+    {
+     "key": "placeName",
+     "type": "data",
+     "def": "Brandenburger Tor, Berlin"
+    },
+    {
+     "key": "shape",
+     "type": "enum",
+     "options": [
+      [
+       "rect",
+       "shape.rect"
+      ],
+      [
+       "circle",
+       "shape.circle"
+      ]
+     ],
+     "def": "rect"
+    },
+    {
+     "key": "width",
+     "type": "length",
+     "min": 30,
+     "max": 600,
+     "def": 150
+    },
+    {
+     "key": "height",
+     "type": "length",
+     "min": 30,
+     "max": 600,
+     "def": 150,
+     "showIf": {
+      "eq": [
+       "shape",
+       "rect"
+      ]
+     }
+    },
+    {
+     "key": "span",
+     "type": "number",
+     "min": 200,
+     "max": 4000,
+     "def": 800
+    },
+    {
+     "key": "roads",
+     "type": "enum",
+     "options": [
+      [
+       "none",
+       "roads.none"
+      ],
+      [
+       "major",
+       "roads.major"
+      ],
+      [
+       "streets",
+       "roads.streets"
+      ],
+      [
+       "all",
+       "roads.all"
+      ]
+     ],
+     "def": "streets"
+    },
+    {
+     "key": "roadStyle",
+     "type": "enum",
+     "options": [
+      [
+       "bands",
+       "roadStyle.bands"
+      ],
+      [
+       "lines",
+       "roadStyle.lines"
+      ]
+     ],
+     "def": "bands"
+    },
+    {
+     "key": "roadWidth",
+     "type": "length",
+     "min": 0.2,
+     "max": 6,
+     "def": 1.6,
+     "showIf": {
+      "eq": [
+       "roadStyle",
+       "bands"
+      ]
+     }
+    },
+    {
+     "key": "water",
+     "type": "bool",
+     "def": true
+    },
+    {
+     "key": "rail",
+     "type": "bool",
+     "def": true
+    },
+    {
+     "key": "parks",
+     "type": "bool",
+     "def": false
+    },
+    {
+     "key": "buildings",
+     "type": "bool",
+     "def": false
+    },
+    {
+     "key": "invert",
+     "type": "bool",
+     "def": false,
+     "showIf": {
+      "eq": [
+       "roadStyle",
+       "bands"
+      ]
+     }
+    },
+    {
+     "key": "minArea",
+     "type": "number",
+     "min": 0,
+     "max": 20,
+     "def": 0.3,
+     "advanced": true
+    }
+   ],
+   "dialog": {
+    "version": 5,
+    "actions": [
+     {
+      "id": "find",
+      "label": "find",
+      "title": "find.title"
+     }
+    ],
+    "steps": [
+     {
+      "id": "place",
+      "label": "step.place",
+      "items": [
+       "query",
+       "find"
+      ]
+     },
+     {
+      "id": "size",
+      "label": "step.size",
+      "items": [
+       "shape",
+       "width",
+       "height",
+       "span"
+      ]
+     },
+     {
+      "id": "content",
+      "label": "step.content",
+      "items": [
+       "roads",
+       "roadStyle",
+       "roadWidth",
+       "water",
+       "rail",
+       "parks",
+       "buildings",
+       "invert",
+       "minArea"
+      ]
+     }
+    ]
+   },
+   "texts": {
+    "en": {
+     "name": "Street map",
+     "desc": "Engravable map of a place from OpenStreetMap: roads, water, railways, parks and buildings on a cut plate.",
+     "keys": "map city street map openstreetmap osm place location roads",
+     "label": "Map: {name}",
+     "step.place": "Place",
+     "step.size": "Size",
+     "step.content": "Content",
+     "query": "Place or address",
+     "find": "Find place",
+     "find.title": "Search OpenStreetMap (Nominatim) for the place; coordinates such as 52.5163, 13.3777 work too",
+     "center": "Centre",
+     "placeName": "Place name",
+     "span": "Map width in metres",
+     "shape": "Shape",
+     "shape.rect": "Rectangle",
+     "shape.circle": "Circle",
+     "width": "Width",
+     "height": "Height",
+     "roads": "Roads",
+     "roads.none": "None",
+     "roads.major": "Main roads",
+     "roads.streets": "Streets",
+     "roads.all": "All, with paths",
+     "roadStyle": "Roads as",
+     "roadStyle.bands": "Areas (fill)",
+     "roadStyle.lines": "Lines (score)",
+     "roadWidth": "Main road width",
+     "water": "Water",
+     "rail": "Railways",
+     "parks": "Parks and woods",
+     "buildings": "Buildings",
+     "invert": "Invert (engrave the background)",
+     "minArea": "Smallest area (mm²)",
+     "noPlace": "Find a place first.",
+     "buildingsLarge": "Buildings are only loaded for maps up to {max} m wide.",
+     "invertLines": "Invert works with roads as areas only.",
+     "enterPlace": "Enter a place or address.",
+     "found": "Found: {name}",
+     "notFound": "Nothing found for “{q}”.",
+     "serverBusy": "The map servers are busy. Try again in a minute.",
+     "info.place": "Place",
+     "info.scale": "Scale",
+     "scale": "1 : {n}",
+     "info.roads": "Roads",
+     "info.buildings": "Buildings",
+     "net.nominatim": "Finds the place you search for (only when you press “Find place”)",
+     "net.overpass": "Loads the roads, water and buildings around the place",
+     "net.overpassCoffee": "Second map server (private.coffee), used when the first one cannot be reached",
+     "net.overpassDresel": "Third map server (dresel.systems, Europe only), used when the others cannot be reached",
+     "serverDown": "No map server could be reached (connection failed: no internet, a firewall, or the servers are down). Try again later."
+    },
+    "de": {
+     "name": "Stadtplan",
+     "desc": "Gravierbarer Plan eines Ortes aus OpenStreetMap: Straßen, Wasser, Bahnen, Parks und Gebäude auf einer geschnittenen Platte.",
+     "keys": "karte stadtplan straßenkarte openstreetmap osm ort straßen",
+     "label": "Stadtplan: {name}",
+     "step.place": "Ort",
+     "step.size": "Größe",
+     "step.content": "Inhalt",
+     "query": "Ort oder Adresse",
+     "find": "Ort suchen",
+     "find.title": "Sucht den Ort in OpenStreetMap (Nominatim); Koordinaten wie 52.5163, 13.3777 gehen auch",
+     "center": "Mitte",
+     "placeName": "Ortsname",
+     "span": "Kartenbreite in Metern",
+     "shape": "Form",
+     "shape.rect": "Rechteck",
+     "shape.circle": "Kreis",
+     "width": "Breite",
+     "height": "Höhe",
+     "roads": "Straßen",
+     "roads.none": "Keine",
+     "roads.major": "Hauptstraßen",
+     "roads.streets": "Straßen",
+     "roads.all": "Alle, mit Wegen",
+     "roadStyle": "Straßen als",
+     "roadStyle.bands": "Flächen (Füllen)",
+     "roadStyle.lines": "Linien (Ritzen)",
+     "roadWidth": "Breite Hauptstraße",
+     "water": "Wasser",
+     "rail": "Bahnstrecken",
+     "parks": "Parks und Wald",
+     "buildings": "Gebäude",
+     "invert": "Umkehren (Hintergrund gravieren)",
+     "minArea": "Kleinste Fläche (mm²)",
+     "noPlace": "Erst einen Ort suchen.",
+     "buildingsLarge": "Gebäude werden nur für Karten bis {max} m Breite geladen.",
+     "invertLines": "Umkehren geht nur mit Straßen als Flächen.",
+     "enterPlace": "Ort oder Adresse eingeben.",
+     "found": "Gefunden: {name}",
+     "notFound": "Nichts gefunden für „{q}“.",
+     "serverBusy": "Die Kartenserver sind ausgelastet. Versuche es in einer Minute noch einmal.",
+     "info.place": "Ort",
+     "info.scale": "Maßstab",
+     "scale": "1 : {n}",
+     "info.roads": "Straßen",
+     "info.buildings": "Gebäude",
+     "net.nominatim": "Findet den gesuchten Ort (nur bei „Ort suchen“)",
+     "net.overpass": "Lädt Straßen, Wasser und Gebäude rund um den Ort",
+     "net.overpassCoffee": "Zweiter Kartenserver (private.coffee), wenn der erste nicht erreichbar ist",
+     "net.overpassDresel": "Dritter Kartenserver (dresel.systems, nur Europa), wenn die anderen nicht erreichbar sind",
+     "serverDown": "Kein Kartenserver war erreichbar (Verbindung fehlgeschlagen: kein Internet, eine Firewall oder die Server sind ausgefallen). Versuche es später noch einmal."
+    },
+    "it": {
+     "name": "Mappa stradale",
+     "desc": "Mappa incidibile di un luogo da OpenStreetMap: strade, acqua, ferrovie, parchi ed edifici su una lastra tagliata.",
+     "keys": "mappa città stradale openstreetmap osm luogo strade",
+     "label": "Mappa: {name}",
+     "step.place": "Luogo",
+     "step.size": "Dimensioni",
+     "step.content": "Contenuto",
+     "query": "Luogo o indirizzo",
+     "find": "Cerca luogo",
+     "find.title": "Cerca il luogo in OpenStreetMap (Nominatim); funzionano anche coordinate come 52.5163, 13.3777",
+     "center": "Centro",
+     "placeName": "Nome del luogo",
+     "span": "Larghezza della mappa in metri",
+     "shape": "Forma",
+     "shape.rect": "Rettangolo",
+     "shape.circle": "Cerchio",
+     "width": "Larghezza",
+     "height": "Altezza",
+     "roads": "Strade",
+     "roads.none": "Nessuna",
+     "roads.major": "Strade principali",
+     "roads.streets": "Strade",
+     "roads.all": "Tutte, con sentieri",
+     "roadStyle": "Strade come",
+     "roadStyle.bands": "Aree (riempimento)",
+     "roadStyle.lines": "Linee (incisione)",
+     "roadWidth": "Larghezza strada principale",
+     "water": "Acqua",
+     "rail": "Ferrovie",
+     "parks": "Parchi e boschi",
+     "buildings": "Edifici",
+     "invert": "Inverti (incidi lo sfondo)",
+     "minArea": "Area minima (mm²)",
+     "noPlace": "Cerca prima un luogo.",
+     "buildingsLarge": "Gli edifici vengono caricati solo per mappe larghe fino a {max} m.",
+     "invertLines": "Inverti funziona solo con strade come aree.",
+     "enterPlace": "Inserisci un luogo o un indirizzo.",
+     "found": "Trovato: {name}",
+     "notFound": "Nessun risultato per «{q}».",
+     "serverBusy": "I server delle mappe sono occupati. Riprova tra un minuto.",
+     "info.place": "Luogo",
+     "info.scale": "Scala",
+     "scale": "1 : {n}",
+     "info.roads": "Strade",
+     "info.buildings": "Edifici",
+     "net.nominatim": "Trova il luogo cercato (solo con «Cerca luogo»)",
+     "net.overpass": "Carica strade, acqua ed edifici intorno al luogo",
+     "net.overpassCoffee": "Secondo server delle mappe (private.coffee), se il primo non è raggiungibile",
+     "net.overpassDresel": "Terzo server delle mappe (dresel.systems, solo Europa), se gli altri non sono raggiungibili",
+     "serverDown": "Nessun server delle mappe raggiungibile (connessione non riuscita: niente internet, un firewall o server non attivi). Riprova più tardi."
+    }
+   },
+   "sha256": "26a23e2077a2ccddeade7eff26261a3349816e2bc5fcafd89d749bcac2163c29"
+  }
+ ]
+}
